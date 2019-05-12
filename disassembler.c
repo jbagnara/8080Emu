@@ -1,26 +1,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int deassemble(unsigned char*, int);
+int disassemble(unsigned char*, int);
 
 /*memBuff is pointer to buffer containing assembly instructions
 pc is program counter. Returns byte size of instruction*/
-int deassemble(unsigned char* memBuff, int pc){
+int disassemble(unsigned char* memBuff, int pc){
 	unsigned char instr = memBuff+pc;	//current instruction
 	int opbytes = 1;	//size of current instruction
 	printf("%d ", pc);
 	switch(instr){
 		case 0x00: printf("NOP"); break;
 		case 0x01: printf("LXI B, #$%02x%02x", memBuff+pc+2, memBuff+pc+1); opbytes = 3; break; 	//Loads 16 bit address into register B
-		case 0x02: printf("STAX B"); break;
-		case 0x03: printf("INX B"); break;
-		case 0x04: printf("INR B"); break;
-		case 0x05: printf("DCR B"); break;
-		case 0x06: printf("MVI B, #$%02x", memBuff+pc+1); opbytes = 2; break;
-		case 0x07:
-		case 0x08:
-		case 0x09:
-		case 0x0A:
+		case 0x02: printf("STAX B"); break;	//stores contents of accumulator in B
+		case 0x03: printf("INX B"); break;	//Increments value in B by 1
+		case 0x04: printf("INR B"); break;	//Increment low order byte
+		case 0x05: printf("DCR B"); break;	//Decrements value in B by 1
+		case 0x06: printf("MVI B, #$%02x", memBuff+pc+1); opbytes = 2; break;	//Load 16 bit value into address B
+		case 0x07: printf("RLC"); break;	//Rotate accumulator left
+		case 0x08: printf("NOP"); break;
+		case 0x09: printf("DAD B"); break;	//Double increment value in B
+		case 0x0A: printf("LDAX B"); break;	
 		case 0x0B:
 		case 0x0C:
 		case 0x0D:
