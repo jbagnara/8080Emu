@@ -1,15 +1,44 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 
 int disassemble(unsigned char*, int);
+
+int main(int argc, char **argv[]){
+	FILE * instrFile = fopen(argv[1], "r");
+	if(instrFile==NULL){
+		printf("instruction file not found\n");
+		exit(1);
+	}
+	
+	fseek(instrFile, 0L, SEEK_END);
+	int size = ftell(instrFile);
+	fseek(instrFile, 0L, SEEK_SET);
+
+	unsigned char* buffer = malloc(size*sizeof(unsigned char));
+	fread(buffer, size, sizeof(unsigned char), instrFile);
+	fclose(instrFile);
+
+	int pc = 0;
+
+	int out = open("out.txt", O_WRONLY);
+	int tmpout = dup(1);
+	dup2(out, 1);
+	while(pc < size)
+		pc+=disassemble(buffer, pc);
+	dup2(1, tmpout);
+
+	return 0;
+}
+
 
 /*memBuff is pointer to buffer containing assembly instructions
 pc is program counter. Returns byte size of instruction*/
 int disassemble(unsigned char* memBuff, int pc){
-	unsigned char instr = memBuff+pc;	//current instruction
+	unsigned char* instr = memBuff+pc;	//current instruction
 	int opbytes = 1;	//size of current instruction
-	printf("%d ", pc);
-	switch(instr){
+	printf("%04d ", pc);
+	switch(*instr){
 		case 0x00: printf("NOP"); break;
 		case 0x01: printf("LXI B, #$%02x%02x", memBuff+pc+2, memBuff+pc+1); opbytes = 3; break; 	//Loads 16 bit address into register B
 		case 0x02: printf("STAX B"); break;	//stores contents of accumulator in B
@@ -21,28 +50,27 @@ int disassemble(unsigned char* memBuff, int pc){
 		case 0x08: printf("NOP"); break;
 		case 0x09: printf("DAD B"); break;	//Double increment value in B
 		case 0x0A: printf("LDAX B"); break;	
-		case 0x0B:
-		case 0x0C:
-		case 0x0D:
-		case 0x0E:
-		case 0x0F:
-
-		case 0x10:
-		case 0x11:
-		case 0x12:
-		case 0x13:
-		case 0x14:
-		case 0x15:
-		case 0x16:
-		case 0x17:
-		case 0x18:
-		case 0x19:
-		case 0x1A:
-		case 0x1B:
-		case 0x1C:
-		case 0x1D:
-		case 0x1E:
-		case 0x1F:
+		case 0x0B: printf("DCX B"); break;	//Decrement register pair B C by 1
+		case 0x0C: printf("INR C"); break; 
+		case 0x0D: printf("DCR C"); break;
+		case 0x0E: printf("MVI C, #$%02x", memBuff+pc+1); opbytes = 2; break;
+		case 0x0F: printf("RRC"); break;	//Rotate accumulator right
+		case 0x10: printf("NOP"); break;
+		case 0x11: printf("LXI D, #$%02x%02x", memBuff+pc+2, memBuff+pc+1); opbytes = 3; break;
+		case 0x12: printf("STAX D"); break;
+		case 0x13: printf("INX D"); break;
+		case 0x14: printf("INR D"); break;
+		case 0x15: printf("DCR D"); break;
+		case 0x16: printf("MVI D, #$%02x", memBuff+pc+1); break;
+		case 0x17: printf("RAL"); break;	//Rotate accumulator left through carry
+		case 0x18: printf("NOP"); break;
+		case 0x19: printf("DAD D"); break;
+		case 0x1A: printf("LDAX D"); break;
+		case 0x1B: printf("DCX D"); break;
+		case 0x1C: printf("INR E"); break;
+		case 0x1D: printf("DCR E"); break;
+		case 0x1E: printf("MVI E, %$%02x", memBuff+pc+1); break;
+		case 0x1F: printf("RAR"); break;
 
 		case 0x20:
 		case 0x21:
@@ -282,7 +310,7 @@ int disassemble(unsigned char* memBuff, int pc){
 		case 0xFE:
 		case 0xFF:
 
-		default: printf("***UNKNOWN INSTRUCTION***\n"); break;
+		default: printf("***UNKNOWN INSTRUCTION***"); break;
 	}
 	printf("\n");
 	return opbytes;
