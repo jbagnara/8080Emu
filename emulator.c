@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdint.h>
 
 typedef struct flags{
 	uint8_t S:1;	//sign flag
@@ -12,7 +13,7 @@ typedef struct flags{
 	uint8_t x:3;	//extra bits
 } flags;
 
-typedef struct 8080state{
+typedef struct state8080{
 	uint8_t A;	//register A (accumulator) pairs F (flags)
 	uint8_t B;	//register B pairs C
 	uint8_t D;	//register D pairs E
@@ -25,14 +26,18 @@ typedef struct 8080state{
 	uint16_t SP;	//stack pointer
 	uint16_t PC;	//function pointer
 	struct flags f;
-} 8080state;
+} state8080;
 
 
-int emulate(8080state*);
-int parity(uint32_t, int){
+int emulate(state8080*);
+int parity(uint32_t, int);
 
 int main(int argc, char *argv[]){
-	/*FILE * instrFile = fopen(argv[1], "r");
+
+	state8080* state = calloc(1, sizeof(state8080));
+	state->memBuff = malloc(0x10000);
+
+	FILE * instrFile = fopen(argv[1], "r");
 	if(instrFile==NULL){
 		printf("instruction file not found\n");
 		exit(1);
@@ -42,22 +47,14 @@ int main(int argc, char *argv[]){
 	int size = ftell(instrFile);
 	fseek(instrFile, 0L, SEEK_SET);
 
-	unsigned char* buffer = malloc(size*sizeof(unsigned char));
-	fread(buffer, size, sizeof(unsigned char), instrFile);
+	fread(state->memBuff, size, sizeof(unsigned char), instrFile);
 	fclose(instrFile);
 
-	int pc = 0;
+	while(1){
+		emulate(state);
+	}
 
-	int out = open("out.txt", O_CREAT | O_RDWR, 0664);
-	int tmpout = dup(1);
-	dup2(out, 1);
-	while(pc < size)
-		pc+=disassemble(buffer, pc);
-	dup2(1, tmpout);
-
-	close(out);
-
-	return 0;*/
+	return 0;
 }
 
 /*counts number of 1 bits in string and returns 1 for even total, 0 for odd total*/
@@ -72,39 +69,45 @@ int parity(uint32_t string, int size){
 }
 /*memBuff is pointer to buffer containing assembly instructions
 pc is program counter. Returns byte size of instruction*/
-int emulate(8080state* state){
+int emulate(state8080* state){
 	unsigned char* instr = state->memBuff+state->PC;	//current instruction
-	int opbytes = 1;	//size of current instruction
 	switch(*instr){
 		case 0x00: break;
 		case 0x01:	//LXI, Loads 16 bit address into register B
-			state->B = state->memBuff+pc+2;
-			state->C = state->memBuff+pc+1;
+			state->B = *(state->memBuff+state->PC+2);
+			state->C = *(state->memBuff+state->PC+1);
 			state->PC+=2;
 			break;
 		case 0x02:	//STAX, stores contents of accumulator in B
 			state->B = state->A;	
 			break;
+
 		case 0x03:	//INX, Increments value in pair B,C by 1
-			uint16_t BC = (state->B << 8) | state->C;
-			uint16_t res = BC+=1;
-			state->B = (res >> 8) & 0xFF;
-			state->C = res & 0xFF;
+			{
+				uint16_t BC = (state->B << 8) | state->C;
+				uint16_t res = BC+=1;
+				state->B = (res >> 8) & 0xFF;
+				state->C = res & 0xFF;
+			}
 			break;
 		case 0x04:	//INR, Increments value in register B by 1
-			uint8_t res = state->B+1;
-			state->flags.S = res >> 7;
-			state->flags.Z = (res == 0x00);
-			state->flags.A = (((state->B << 4) >> 4) + 1) > 0x0F;
-			state->flags.P = parity((uint32_t) res, 8);
+			{
+				uint8_t res = state->B+1;
+				state->f.S = res >> 7;
+				state->f.Z = (res == 0x00);
+				state->f.A = (((state->B << 4) >> 4) + 1) > 0x0F;
+				state->f.P = parity((uint32_t) res, 8);
+			}
 			break;
 			
 		case 0x05:	//DCR, Decrements value in B by 1
-			uint8_t res = state->B-1;
-			state->flags.S = res >> 7;
-			state->flags.Z = (res == 0x00);
-			state->flags.A = (((state->B << 4) >> 4) + 1) > 0x0F;
-			state->flags.P = parity((uint32_t) res, 8);
+			{
+				uint8_t res = state->B-1;
+				state->f.S = res >> 7;
+				state->f.Z = (res == 0x00);
+				state->f.A = (((state->B << 4) >> 4) + 1) > 0x0F;
+				state->f.P = parity((uint32_t) res, 8);
+			}
 			break;
 
 		//case 0x06: printf("MVI B, #$%02x", *(memBuff+pc+1)); opbytes = 2; break;	//Load 16 bit value into address B
@@ -307,7 +310,11 @@ int emulate(8080state* state){
 		//case 0xC0: printf("RNZ"); break;
 		//case 0xC1: printf("POP B"); break;
 		//case 0xC2: printf("JNZ #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xC3: printf("JMP #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
+		case 0xC3:	//JMP ADDR, jump to 16 bit address
+			state->PC = (*(state->memBuff+state->PC+2) << 8) |
+					*(state->memBuff+state->PC+1);
+			state->PC-=1;
+			break;
 		//case 0xC4: printf("CNZ #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xC5: printf("PUSH B"); break;
 		//case 0xC6: printf("ADI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
@@ -372,9 +379,12 @@ int emulate(8080state* state){
 		//case 0xFE: printf("CPI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
 		//case 0xFF: printf("RST 7"); break;
 
-		//default: printf("***UNKNOWN INSTRUCTION***"); break;
-		state->PC+=1;
+		default: 
+			printf("***UNKNOWN INSTRUCTION 0x%02x***\n", *instr);
+			exit(1);
+			
 	}
-	printf("\n");
-	return opbytes;
+	state->PC+=1;
+	//printf("\n");
+	return 1;
 }	
