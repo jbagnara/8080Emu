@@ -110,7 +110,11 @@ int emulate(state8080* state){
 			}
 			break;
 
-		//case 0x06: printf("MVI B, #$%02x", *(memBuff+pc+1)); opbytes = 2; break;	//Load 16 bit value into address B
+		case 0x06:	//MVI, Loads 8 bit decimal into register B
+			state->B = *(state->memBuff+state->PC+1);
+			state->PC+=1;
+			break;
+
 		//case 0x07: printf("RLC"); break;	//Rotate accumulator left
 		//case 0x08: printf("NOP"); break;
 		//case 0x09: printf("DAD B"); break;	//Double increment value in B
@@ -155,7 +159,11 @@ int emulate(state8080* state){
 		//case 0x2F: printf("CMA"); break;
 		
 		//case 0x30: printf("NOP"); break;
-		//case 0x31: printf("LXI SP, #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
+		case 0x31:	//LXI,	Loads 16 bit address into SP
+			state->SP = *(state->memBuff+state->PC+1);
+			state->PC+=2;
+			break;
+
 		//case 0x32: printf("STA #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0x33: printf("INX SP"); break;
 		//case 0x34: printf("INR M"); break;
@@ -324,7 +332,14 @@ int emulate(state8080* state){
 		//case 0xCA: printf("JZ #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xCB: printf("JMP #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xCC: printf("CZ #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xCD: printf("CALL #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
+		case 0xCD:	//CALL ADDR, jump to 16 bit address and push address to stack
+			state->memBuff[state->SP-2] = (*(state->memBuff+state->PC+2) << 8) |
+					*(state->memBuff+state->PC+1);
+			state->SP-=2;
+			state->PC = state->memBuff[state->SP] | state->memBuff[state->SP+1];
+			break;
+
+
 		//case 0xCE: printf("ACI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
 		//case 0xCF: printf("RST 1"); break;
 
