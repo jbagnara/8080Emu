@@ -1,14 +1,14 @@
 makefile: emulator disassembler
 
 emulator: emulator.o
-	cc -o emulator emulator.o
+	cc -o emulator emulator.o disassemble.h disassemble.c
 	rm emulator.o
 
 emulator.o:
 	cc -c -g emulator.c
 
 disassembler:	disassembler.o
-	cc -o disassembler disassembler.o
+	cc -o disassembler disassembler.o disassemble.h disassemble.c
 	rm disassembler.o
 
 disassembler.o:
