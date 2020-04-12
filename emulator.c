@@ -3,6 +3,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_timer.h>
 #include "disassemble.h"
 
 typedef struct flags{
@@ -33,6 +36,8 @@ typedef struct state8080{
 int emulate(state8080*);
 int parity(uint32_t, int);
 
+int vidBuff = 0x2400;
+
 int main(int argc, char *argv[]){
 
 	state8080* state = calloc(1, sizeof(state8080));
@@ -50,6 +55,10 @@ int main(int argc, char *argv[]){
 
 	fread(state->memBuff, size, sizeof(unsigned char), instrFile);
 	fclose(instrFile);
+
+	SDL_Window *win;
+	SDL_Renderer *render;
+	SDL_CreateWindowAndRenderer(256, 224, 0, &win, &render);
 
 	while(1){
 		emulate(state);

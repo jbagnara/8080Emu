@@ -1,7 +1,7 @@
 makefile: emulator disassembler
 
 emulator: emulator.o
-	cc -o emulator emulator.o disassemble.h disassemble.c
+	cc -o emulator emulator.o disassemble.h disassemble.c -lSDL2
 	rm emulator.o
 
 emulator.o:
