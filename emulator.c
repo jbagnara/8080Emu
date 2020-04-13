@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <pthread.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_timer.h>
@@ -32,16 +33,17 @@ typedef struct state8080{
 	struct flags f;
 } state8080;
 
-
+SDL_Renderer *renderer;
+uint8_t* memBuff;
 int emulate(state8080*);
 int parity(uint32_t, int);
-
-int vidBuff = 0x2400;
+void* drawScreen(void* p);
 
 int main(int argc, char *argv[]){
 
 	state8080* state = calloc(1, sizeof(state8080));
 	state->memBuff = malloc(0x10000);
+	memBuff = state->memBuff;
 
 	FILE * instrFile = fopen(argv[1], "r");
 	if(instrFile==NULL){
@@ -57,10 +59,13 @@ int main(int argc, char *argv[]){
 	fclose(instrFile);
 
 	SDL_Window *win;
-	SDL_Renderer *render;
-	SDL_CreateWindowAndRenderer(256, 224, 0, &win, &render);
+	SDL_CreateWindowAndRenderer(256, 224, 0, &win, &renderer);
+
+	pthread_t id;
+	pthread_create(&id, NULL, drawScreen, NULL );
 
 	while(1){
+		//SDL_Texture* buffer = SDL_CreateTexture(render, 
 		emulate(state);
 	}
 
@@ -68,6 +73,28 @@ int main(int argc, char *argv[]){
 	free(state);
 
 	return 0;
+}
+
+void* drawScreen(void* p){
+	uint8_t* fb = memBuff+0x2400;
+	
+	while(1){
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+		SDL_RenderClear(renderer);
+
+		for(int x=0; x<32; x++){
+			for(int bit=0; bit<8; bit++){
+				for(int y=0; y<224; y++){
+					//if(fb[x+32*y] & (1 << bit)){
+					//	printf("check!");
+						SDL_RenderDrawPoint(renderer, x*8+bit, y);
+					//}
+				}
+			}
+		}
+		
+		SDL_RenderPresent(renderer);
+	}
 }
 
 /*counts number of 1 bits in string and returns 1 for even total, 0 for odd total*/
@@ -84,7 +111,18 @@ int parity(uint32_t string, int size){
 pc is program counter. Returns byte size of instruction*/
 int emulate(state8080* state){
 	unsigned char* instr = state->memBuff+state->PC;	//current instruction
-	disassemble(state->memBuff, state->PC);
+	//disassemble(state->memBuff, state->PC);
+	
+	printf("0x%02x:	 a: %02x szapc: %d%d%d%d%d\
+	  bc: %02x%02x\
+	  de: %02x%02x\
+	  hl: %02x%02x\
+	  pc: %02x\
+	  sp: %02x\n", *instr,
+	  state->A, state->f.S, state->f.Z, state->f.A,
+	  state->f.P, state->f.C, state->B, state->C, state->D, 
+	  state->E, state->H, state->L, state->PC, state->SP);
+
 	switch(*instr){
 		case 0x00: break;
 		case 0x01:	//LXI, Loads 16 bit address into register B
@@ -133,7 +171,14 @@ int emulate(state8080* state){
 
 		//case 0x07: printf("RLC"); break;	//Rotate accumulator left
 		//case 0x08: printf("NOP"); break;
-		//case 0x09: printf("DAD B"); break;	//Double increment value in B
+		case 0x09:{	//DAD B 
+			uint32_t hl = state-> H << 8 | state->L;
+			uint32_t bc = state-> B << 8 | state->C;
+			uint32_t res = hl + bc;
+			state->H = (res >> 8) & 0xFF;
+			state->L = res & 0xFF;
+			state->f.C = (res & 0xFFFF0000) > 1;
+			}		
 		//case 0x0A: printf("LDAX B"); break;	
 		//case 0x0B: printf("DCX B"); break;	//Decrement register pair B C by 1
 		//case 0x0C: printf("INR C"); break; 
@@ -166,7 +211,14 @@ int emulate(state8080* state){
 		//case 0x16: printf("MVI D, #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
 		//case 0x17: printf("RAL"); break;	//Rotate accumulator left through carry
 		//case 0x18: printf("NOP"); break;
-		//case 0x19: printf("DAD D"); break;
+		case 0x19:{ //DAD D	
+			uint32_t hl = state-> H << 8 | state->L;
+			uint32_t de = state-> D << 8 | state->E;
+			uint32_t res = hl + de;
+			state->H = (res >> 8) & 0xFF;
+			state->L = res & 0xFF;
+			state->f.C = (res & 0xFFFF0000) > 1;
+			}
 
 		case 0x1A:{	//LDAX D, Loads address pointed by register pair DE into accumulator A
 			uint16_t DE =  state->D << 8 | state->E;
@@ -194,15 +246,26 @@ int emulate(state8080* state){
 			uint16_t res = ((state->H << 8) | (state-> L)) + 1;
 			state->H = res >> 8;
 			state->L = res & 0xFF;
-			}
 			break;
+			}
 
 		//case 0x24: printf("INR H"); break;
 		//case 0x25: printf("DCR H"); break;
-		//case 0x26: printf("MVI H, #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
+		case 0x26:{	//MVI H, D8 
+			state->memBuff[state->H] = state->memBuff[state->PC+1];
+			state->PC+=1;
+			break;
+			}
 		//case 0x27: printf("DAA"); break;
 		//case 0x28: printf("NOP"); break;
-		//case 0x29: printf("DAD H"); break;
+		case 0x29:{	//DAD H
+			uint32_t hl = state-> H << 8 | state->L;
+		 	hl = hl << 1;
+			state->H = hl >> 8;
+			state->L = hl & 0xFF;
+			state->f.C = (hl & 0xFFFF0000) > 0;
+			break;
+			}
 		//case 0x2A: printf("LHLD #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0x2B: printf("DCX H"); break;
 		//case 0x2C: printf("INR L"); break;
@@ -287,7 +350,10 @@ int emulate(state8080* state){
 		//case 0x6C: printf("MOV L, H"); break;
 		//case 0x6D: printf("MOV L, L"); break;
 		//case 0x6E: printf("MOV L, M"); break;
-		//case 0x6F: printf("MOV L, A"); break;
+		case 0x6F:{	//MOV A -> L
+			state->L = state->A;
+			break;	
+			}
 
 		//case 0x70: printf("MOV M, B"); break;
 		//case 0x71: printf("MOV M, C"); break;
@@ -382,7 +448,13 @@ int emulate(state8080* state){
 		//case 0xBF: printf("CMP A"); break;
 
 		//case 0xC0: printf("RNZ"); break;
-		//case 0xC1: printf("POP B"); break;
+		case 0xC1:{ //POP B
+			state->B = state->memBuff[state->SP+2];
+			state->C = state->memBuff[state->SP+1];
+			state->SP+=2;
+			break;	
+			}
+
 		case 0xC2: //JNZ a16, If not Zero flag, jump to 16 bit address
 			if(!state->f.Z){
 				state->PC = state->memBuff[state->PC+2] << 8 |
@@ -400,7 +472,13 @@ int emulate(state8080* state){
 			state->PC-=1;
 			break;
 		//case 0xC4: printf("CNZ #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xC5: printf("PUSH B"); break;
+		case 0xC5:{	//PUSH B
+			state->memBuff[state->SP-1] = state->B;
+			state->memBuff[state->SP-2] = state->C;
+			state->SP-=2;
+			break;	
+			}
+
 		//case 0xC6: printf("ADI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
 		//case 0xC7: printf("RST 0"); break;
 		//case 0xC8: printf("RZ"); break;
@@ -413,7 +491,7 @@ int emulate(state8080* state){
 		//case 0xCB: printf("JMP #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xCC: printf("CZ #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		case 0xCD: {	//CALL ADDR, jump to 16 bit address and push address to stack
-			uint16_t	 ret = state->PC+2;
+			uint16_t ret = state->PC+2;
 			state->memBuff[state->SP-1] = ret >> 8 & 0xFF;
 			state->memBuff[state->SP-2] = ret & 0xFF;
 			state->SP-=2;
@@ -430,9 +508,20 @@ int emulate(state8080* state){
 		//case 0xD0: printf("RNC"); break;
 		//case 0xD1: printf("POP D"); break;
 		//case 0xD2: printf("JNC #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xD3: printf("OUT #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
+		case 0xD3:{	//OUT D8
+			uint8_t device = state->memBuff[state->PC+1];
+			state->PC+=1;
+
+			//SOMETHING
+			
+			}
 		//case 0xD4: printf("CNC #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xD5: printf("PUSH D"); break;
+		case 0xD5:{	//PUSH D to stack
+			state->memBuff[state->SP-1] = state->D;
+			state->memBuff[state->SP-2] = state->E;
+			state->SP-=2;
+			break;
+		}
 		//case 0xD6: printf("SUI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
 		//case 0xD7: printf("RST 2"); break;
 		//case 0xD8: printf("RC"); break;
@@ -449,13 +538,26 @@ int emulate(state8080* state){
 		//case 0xE2: printf("JPO #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xE3: printf("XTHL"); break;
 		//case 0xE4: printf("CPO #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xE5: printf("PUSH H"); break;
+		case 0xE5:{
+			state->memBuff[state->SP-1] = state->H;
+			state->memBuff[state->SP-2] = state->L;
+			state->SP-=2;
+			break;
+		}
 		//case 0xE6: printf("ANI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
 		//case 0xE7: printf("RST 4"); break;
 		//case 0xE8: printf("RPE"); break;
 		//case 0xE9: printf("PCHL"); break;
 		//case 0xEA: printf("JPE #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xEB: printf("XCHG"); break;
+		case 0xEB:{	//XCHG
+			uint8_t tmpD, tmpE;
+			tmpD = state->D;
+			tmpE = state->E;
+			state->D = state->H;
+			state->E = state->L;
+			state->H = tmpD;
+			state->L = tmpE;
+		}
 		//case 0xEC: printf("CPE #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xED: printf("CALL #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xEE: printf("XRI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
@@ -500,7 +602,7 @@ int emulate(state8080* state){
 		//case 0xFF: printf("RST 7"); break;
 
 		default: 
-			printf("***UNKNOWN INSTRUCTION 0x%02x AT INSTRUCTION 0x%04x***\n", *instr, state->PC);
+			printf("***UNKNOWN INSTRUCTION 0x%02x AT LINE 0x%04x***\n", *instr, state->PC);
 			exit(1);
 			
 	}
