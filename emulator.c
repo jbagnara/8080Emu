@@ -39,6 +39,9 @@ int emulate(state8080*);
 int parity(uint32_t, int);
 void* drawScreen(void* p);
 
+int fps = 60;
+int cpuClock = 3125000;
+
 int main(int argc, char *argv[]){
 
 	state8080* state = calloc(1, sizeof(state8080));
@@ -60,15 +63,20 @@ int main(int argc, char *argv[]){
 
 	SDL_Window *win;
 	SDL_CreateWindowAndRenderer(256, 224, 0, &win, &renderer);
+	SDL_Event events;
 
 	pthread_t id;
 	pthread_create(&id, NULL, drawScreen, NULL );
 
 	while(1){
 		//SDL_Texture* buffer = SDL_CreateTexture(render, 
+		if(events.type==SDL_QUIT)
+			break;
 		emulate(state);
+        sleep(1/cpuClock); //TODO change this
 	}
 
+	SDL_Quit();
 	free(state->memBuff);
 	free(state);
 
@@ -77,9 +85,9 @@ int main(int argc, char *argv[]){
 
 void* drawScreen(void* p){
 	uint8_t* fb = memBuff+0x2400;
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-		SDL_RenderClear(renderer);
-		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+	SDL_RenderClear(renderer);
+	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
 	
 	while(1){
 		//SDL_RenderClear(renderer);
@@ -88,13 +96,17 @@ void* drawScreen(void* p){
 			for(int bit=0; bit<8; bit++){
 				for(int y=0; y<224; y++){
 					if(fb[x+32*y] & (1 << bit)){
+						SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
 						SDL_RenderDrawPoint(renderer, x*8+bit, y);
-						SDL_RenderPresent(renderer);
+					}else {
+						SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+						SDL_RenderDrawPoint(renderer, x*8+bit, y);
 					}
 				}
 			}
 		}
-		
+		SDL_RenderPresent(renderer);
+        SDL_Delay(1/fps); //TODO change this
 	}
 }
 
@@ -105,8 +117,7 @@ int parity(uint32_t string, int size){
 		if(((string >> x) & 0x0001) == 0x0001)
 			total+=1;
 	}
-	return (total+1)%2;
-	
+	return (total+1)%2;	
 }
 /*memBuff is pointer to buffer containing assembly instructions
 pc is program counter. Returns byte size of instruction*/
@@ -199,7 +210,9 @@ int emulate(state8080* state){
 			state->PC+=1;
 			break;
 
-		//case 0x0F: printf("RRC"); break;	//Rotate accumulator right
+		case 0x0F:{	// RRC (Rotate accumulator right)
+			state->A = state->A << 7 | state->A >> 1;	//TODO make sure that's right
+		}
 		//case 0x10: printf("NOP"); break;
 
 		case 0x11:	//LXI, Loads 16 bit address into register pair DE
@@ -335,7 +348,11 @@ int emulate(state8080* state){
 		//case 0x53: printf("MOV D, E"); break;
 		//case 0x54: printf("MOV D, H"); break;
 		//case 0x55: printf("MOV D, L"); break;
-		//case 0x56: printf("MOV D, M"); break;
+		case 0x56:{ //Mov M -> D
+			uint16_t M = state->H << 8 | state->L;
+			state->D = state->memBuff[M];
+			break;
+		}
 		//case 0x57: printf("MOV D, A"); break;
 		//case 0x58: printf("MOV E, B"); break;
 		//case 0x59: printf("MOV E, C"); break;
@@ -343,7 +360,11 @@ int emulate(state8080* state){
 		//case 0x5B: printf("MOV E, E"); break;
 		//case 0x5C: printf("MOV E, H"); break;
 		//case 0x5D: printf("MOV E, L"); break;
-		//case 0x5E: printf("MOV E, M"); break;
+		case 0x5E:{ //Mov M -> E
+			uint16_t M = state->H << 8 | state->L;
+			state->E = state->memBuff[M];
+			break;
+		}
 		//case 0x5F: printf("MOV E, A"); break;
 
 		//case 0x60: printf("MOV H, B"); break;
@@ -352,7 +373,11 @@ int emulate(state8080* state){
 		//case 0x63: printf("MOV H, E"); break;
 		//case 0x64: printf("MOV H, H"); break;
 		//case 0x65: printf("MOV H, L"); break;
-		//case 0x66: printf("MOV H, M"); break;
+		case 0x66:{ // Mov M -> H 
+			uint16_t M = state->H << 8 | state->L;
+			state->H = state->memBuff[M];
+			break;
+		}
 		//case 0x67: printf("MOV H, A"); break;
 		//case 0x68: printf("MOV L, B"); break;
 		//case 0x69: printf("MOV L, C"); break;
@@ -381,13 +406,20 @@ int emulate(state8080* state){
 			
 		//case 0x78: printf("MOV A, B"); break;
 		//case 0x79: printf("MOV A, C"); break;
-		//case 0x7A: printf("MOV A, D"); break;
+		case 0x7A:{ // Mov D -> A
+			state->A = state->D;
+			break;
+		}
 		//case 0x7B: printf("MOV A, E"); break;
-		case 0x7C: //Move H-> A
+		case 0x7C: //Move H -> A
 			state->A = state->H;
 			break;
 		//case 0x7D: printf("MOV A, L"); break;
-		//case 0x7E: printf("MOV A, M"); break;
+		case 0x7E:{ // Mov M -> A
+			uint16_t M = state->H << 8 | state->L;
+			state->A = state->memBuff[M];
+			break;
+		}
 		//case 0x7F: printf("MOV A, A"); break;
 
 		//case 0x80: printf("ADD B"); break;
@@ -491,7 +523,17 @@ int emulate(state8080* state){
 			break;	
 		}
 
-		//case 0xC6: printf("ADI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
+		case 0xC6:{ //ADI (add immediate to accumulator)
+			uint16_t imd = state->memBuff[state->PC+1];
+			state->A+=imd;
+			uint8_t res = state->A & imd;
+			state->f.C = ((uint16_t)state->A + imd) >> 8;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0;
+			state->f.A = (((res << 4) >> 4) + 1) > 0x0F;
+			state->f.P = parity((uint32_t) res, 8);	
+			break;
+		}
 		//case 0xC7: printf("RST 0"); break;
 		//case 0xC8: printf("RZ"); break;
 		case 0xC9: //RET return from subroutine
@@ -589,11 +631,31 @@ int emulate(state8080* state){
 		//case 0xEF: printf("RST 5"); break;
 
 		//case 0xF0: printf("RP"); break;
-		//case 0xF1: printf("POP PSW"); break;
+		case 0xF1:{ // Pop PSW
+			uint8_t flags = memBuff[state->SP];
+			state->A = memBuff[state->SP+1];
+			state->f.S = flags >> 4 & 1;
+			state->f.Z = flags >> 3 & 1;
+			state->f.A = flags >> 2 & 1;
+			state->f.P = flags >> 1 & 1;
+			state->f.C = flags & 1;
+
+			state->SP+=2;
+		}
 		//case 0xF2: printf("JP #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xF3: printf("DI"); break;
 		//case 0xF4: printf("CP #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xF5: printf("PUSH PSW"); break;
+		case 0xF5:{ // Push PSW
+			uint8_t flags = (state->f.S << 4) |
+				(state->f.Z << 3) |
+				(state->f.A << 2) |
+				(state->f.P << 1) |
+				state->f.C;
+			state->memBuff[state->SP-1] = state->A;
+			state->memBuff[state->SP-2] = flags;
+			state->SP-=2;
+			break;
+		}
 		//case 0xF6: printf("ORI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
 		//case 0xF7: printf("RST 6"); break;
 		//case 0xF8: printf("RM"); break;
@@ -628,9 +690,7 @@ int emulate(state8080* state){
 
 		default: 
 			printf("***UNKNOWN INSTRUCTION 0x%02x AT LINE 0x%04x***\n", *instr, state->PC);
-			while(1){
-				;
-			}
+			SDL_Quit();
 			exit(1);
 			
 	}
