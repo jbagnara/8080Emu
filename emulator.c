@@ -62,7 +62,7 @@ int main(int argc, char *argv[]){
 	fclose(instrFile);
 
 	SDL_Window *win;
-	SDL_CreateWindowAndRenderer(256, 224, 0, &win, &renderer);
+	SDL_CreateWindowAndRenderer(500, 500, 0, &win, &renderer);
 	SDL_Event events;
 
 	pthread_t id;
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]){
 		if(events.type==SDL_QUIT)
 			break;
 		emulate(state);
-        sleep(1/cpuClock); //TODO change this
+        usleep(50); //TODO change this
 	}
 
 	SDL_Quit();
@@ -85,12 +85,13 @@ int main(int argc, char *argv[]){
 
 void* drawScreen(void* p){
 	uint8_t* fb = memBuff+0x2400;
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-	SDL_RenderClear(renderer);
-	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
 	
 	while(1){
-		//SDL_RenderClear(renderer);
+		SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, 256, 224);
+		SDL_SetRenderTarget(renderer, texture);
+      	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+      	SDL_RenderClear(renderer);
+      	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
 
 		for(int x=0; x<32; x++){
 			for(int bit=0; bit<8; bit++){
@@ -98,14 +99,17 @@ void* drawScreen(void* p){
 					if(fb[x+32*y] & (1 << bit)){
 						SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
 						SDL_RenderDrawPoint(renderer, x*8+bit, y);
-					}else {
-						SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-						SDL_RenderDrawPoint(renderer, x*8+bit, y);
+					} else {
+						//SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+						//SDL_RenderDrawPoint(renderer, x*8+bit, y);
 					}
 				}
 			}
 		}
+		SDL_SetRenderTarget(renderer, NULL);
+		SDL_RenderCopyEx(renderer, texture, NULL, NULL, 270, NULL, SDL_FLIP_NONE);
 		SDL_RenderPresent(renderer);
+		SDL_DestroyTexture(texture);
         SDL_Delay(1/fps); //TODO change this
 	}
 }
@@ -610,7 +614,18 @@ int emulate(state8080* state){
 			state->SP-=2;
 			break;
 		}
-		//case 0xE6: printf("ANI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
+		case 0xE6:{ //ANI (and immediate with accumulator)
+			uint8_t imd = memBuff[state->SP+1];
+			uint8_t res = state->A & imd;
+			state->f.C = 0;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0;
+			state->f.A = (((res << 4) >> 4) + 1) > 0x0F;
+			state->f.P = parity((uint32_t) res, 8);
+			state->A = res;
+			state->PC+=1;
+			break;
+		}
 		//case 0xE7: printf("RST 4"); break;
 		//case 0xE8: printf("RPE"); break;
 		//case 0xE9: printf("PCHL"); break;
