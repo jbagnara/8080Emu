@@ -62,19 +62,21 @@ int main(int argc, char *argv[]){
 	fclose(instrFile);
 
 	SDL_Window *win;
-	SDL_CreateWindowAndRenderer(500, 500, 0, &win, &renderer);
+	SDL_CreateWindowAndRenderer(1000, 1000, 0, &win, &renderer);
 	SDL_Event events;
 
 	pthread_t id;
 	pthread_create(&id, NULL, drawScreen, NULL );
 
 	while(1){
-		//SDL_Texture* buffer = SDL_CreateTexture(render, 
-		if(events.type==SDL_QUIT)
-			break;
+        while(SDL_PollEvent(&events)){
+			if(events.type==SDL_QUIT){
+				goto quit;	//exit game loop
+			}
+		}
 		emulate(state);
         usleep(50); //TODO change this
-	}
+	} quit:
 
 	SDL_Quit();
 	free(state->memBuff);
@@ -99,10 +101,7 @@ void* drawScreen(void* p){
 					if(fb[x+32*y] & (1 << bit)){
 						SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
 						SDL_RenderDrawPoint(renderer, x*8+bit, y);
-					} else {
-						//SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-						//SDL_RenderDrawPoint(renderer, x*8+bit, y);
-					}
+					} 
 				}
 			}
 		}
@@ -128,7 +127,7 @@ pc is program counter. Returns byte size of instruction*/
 int emulate(state8080* state){
 	unsigned char* instr = state->memBuff+state->PC;	//current instruction
 	//disassemble(state->memBuff, state->PC);
-	
+
 	printf("0x%02x:	 a: %02x szapc: %d%d%d%d%d\
 	  bc: %02x%02x\
 	  de: %02x%02x\
@@ -216,6 +215,7 @@ int emulate(state8080* state){
 
 		case 0x0F:{	// RRC (Rotate accumulator right)
 			state->A = state->A << 7 | state->A >> 1;	//TODO make sure that's right
+			break;
 		}
 		//case 0x10: printf("NOP"); break;
 
@@ -414,7 +414,9 @@ int emulate(state8080* state){
 			state->A = state->D;
 			break;
 		}
-		//case 0x7B: printf("MOV A, E"); break;
+		case 0x7B: //Mov E -> A
+			state->A = state->E;
+			break;
 		case 0x7C: //Move H -> A
 			state->A = state->H;
 			break;
@@ -510,9 +512,7 @@ int emulate(state8080* state){
 			} else{
 				state->PC+=2;
 			} 
-			break;
-				
-				
+			break;			
 
 		case 0xC3:	//JMP ADDR, jump to 16 bit address
 			state->PC = state->memBuff[state->PC+2] << 8 |
@@ -536,8 +536,10 @@ int emulate(state8080* state){
 			state->f.Z = res == 0;
 			state->f.A = (((res << 4) >> 4) + 1) > 0x0F;
 			state->f.P = parity((uint32_t) res, 8);	
+			state->PC+=1;
 			break;
 		}
+
 		//case 0xC7: printf("RST 0"); break;
 		//case 0xC8: printf("RZ"); break;
 		case 0xC9: //RET return from subroutine
@@ -654,8 +656,8 @@ int emulate(state8080* state){
 			state->f.A = flags >> 2 & 1;
 			state->f.P = flags >> 1 & 1;
 			state->f.C = flags & 1;
-
 			state->SP+=2;
+			break;
 		}
 		//case 0xF2: printf("JP #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xF3: printf("DI"); break;
