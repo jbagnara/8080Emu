@@ -129,14 +129,14 @@ int emulate(state8080* state){
 	//disassemble(state->memBuff, state->PC);
 
 	printf("0x%02x:	 a: %02x szapc: %d%d%d%d%d\
-	  bc: %02x%02x\
-	  de: %02x%02x\
-	  hl: %02x%02x\
-	  pc: %02x\
-	  sp: %02x\n", *instr,
-	  state->A, state->f.S, state->f.Z, state->f.A,
-	  state->f.P, state->f.C, state->B, state->C, state->D, 
-	  state->E, state->H, state->L, state->PC, state->SP);
+		bc: %02x%02x\
+		de: %02x%02x\
+		hl: %02x%02x\
+		pc: %02x\
+		sp: %02x\n", *instr,
+		state->A, state->f.S, state->f.Z, state->f.A,
+		state->f.P, state->f.C, state->B, state->C, state->D, 
+		state->E, state->H, state->L, state->PC, state->SP);
 
 	switch(*instr){
 		case 0x00: break;
@@ -308,7 +308,13 @@ int emulate(state8080* state){
 			state->PC+=2;
 			break;
 
-		//case 0x32: printf("STA #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
+		case 0x32:{ //STA 16d (store accumulator in memory at address of immediate)
+			uint16_t addr = memBuff[state->PC+2] << 8 |
+					state->memBuff[state->PC+1];
+			memBuff[addr] = state->A;
+			state->PC+=2;
+			break;
+		}
 		//case 0x33: printf("INX SP"); break;
 		//case 0x34: printf("INR M"); break;
 		//case 0x35: printf("DCR M"); break; 
@@ -322,11 +328,21 @@ int emulate(state8080* state){
 		//case 0x37: printf("STC"); break;
 		//case 0x38: printf("NOP"); break;
 		//case 0x39: printf("DAD SP"); break;
-		//case 0x3A: printf("LDA #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
+		case 0x3A:{ //LDA (load value at address of 16 bit immediate into accumulator
+			uint16_t addr = memBuff[state->PC+2] << 8 |
+					state->memBuff[state->PC+1];
+			state->A = state->memBuff[addr];
+			state->PC+=2;
+			break;
+		}
 		//case 0x3B: printf("DCX SP"); break;
 		//case 0x3C: printf("INR A"); break;
 		//case 0x3D: printf("DCR A"); break;
-		//case 0x3E: printf("MVI A, #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
+		case 0x3E:{ //MVI A, 8d
+			state->A = memBuff[state->PC+1];
+			state->PC+=1;
+			break;
+		}
 		//case 0x3F: printf("CMC"); break;
 
 		//case 0x40: printf("MOV B, B"); break;
