@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+
 #include "disassemble.h"
 
 int main(int argc, char *argv[]){
@@ -32,7 +33,3 @@ int main(int argc, char *argv[]){
 
 	return 0;
 }
-
-
-/*memBuff is pointer to buffer containing assembly instructions
-pc is program counter. Returns byte size of instruction*/
