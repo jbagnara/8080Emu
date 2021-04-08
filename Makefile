@@ -10,6 +10,10 @@ disassembler:	disassembler.o
 	cc -o disassembler disassembler.o disassemble.h disassemble.c
 	rm disassembler.o
 
+test: emulator.o disassemble.o display.o
+	cc -c -g -I"." test/testop.c
+	cc -o test/test testop.o emulator.o disassemble.o display.o -lSDL2 -pthread
+	rm emulator.o
 
 emulator.o:
 	cc -c -g emulator.c

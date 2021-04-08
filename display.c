@@ -4,9 +4,6 @@ SDL_Window* win;
 SDL_Renderer* renderer;
 SDL_Event events;
 
-static int fps = 60;
-static int cpuClock = 3125000;
-
 int pollEvent(){
 	while(SDL_PollEvent(&events)){
 		if(events.type == SDL_QUIT){
@@ -21,10 +18,18 @@ void createWindow(){
 	SDL_CreateWindowAndRenderer(1000, 1000, 0, &win, &renderer);
 }
 
+void closeWindow(){
+	SDL_Quit();
+}
+
 void* drawScreen(void* p){
 	uint8_t* fb = (uint8_t*)p;
 	
 	while(1){
+		struct timespec ts;
+		timespec_get(&ts, TIME_UTC);
+		long start = ts.tv_nsec;
+
 		SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, 256, 224);
 		SDL_SetRenderTarget(renderer, texture);
       	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
@@ -45,6 +50,14 @@ void* drawScreen(void* p){
 		SDL_RenderCopyEx(renderer, texture, NULL, NULL, 270, NULL, SDL_FLIP_NONE);
 		SDL_RenderPresent(renderer);
 		SDL_DestroyTexture(texture);
-        SDL_Delay(1/fps); //TODO change this
+
+		long current, timedif;;
+		do {
+			timespec_get(&ts, TIME_UTC);
+			current = ts.tv_nsec;
+			timedif = current - start;
+			if(timedif < 0)
+				timedif += start;
+		} while(timedif < DISPLAY_SPD_NSEC);
 	}
 }

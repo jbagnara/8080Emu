@@ -37,8 +37,32 @@ int startEmulation(FILE* rom){
 		if(pollEvent())	//Quit event reached, exit game loop
 			break;
 		
-		execute(&state);
-		usleep(50); //TODO change this
+		int cycles = total_cycles;
+
+		struct timespec ts;
+		timespec_get(&ts, TIME_UTC);	
+		long start = ts.tv_nsec;
+
+		if(execute(&state) == -1) {
+			closeWindow();
+			break;
+		}
+		int instr_cycles = total_cycles - cycles;
+
+		if(state.INTE == 0x1){
+			//ISR
+		}
+
+		long current, timedif;
+		do {
+			timespec_get(&ts, TIME_UTC);
+			current = ts.tv_nsec;
+			timedif = current - start;
+			if(timedif < 0)
+				timedif += start;
+		} while(timedif < CYCLE_SPD_NSEC * instr_cycles);
+		printf("%ld\n", timedif);
+
 	}
 
 	return 0;
@@ -52,7 +76,7 @@ int startEmulation(FILE* rom){
 int parity(uint32_t string, int size){
 	int total = 0;
 	for(int x=0; x<size; x++){
-		if(((string >> x) & 0x0001) == 0x0001)
+		if(((string >> x) & 0x1) == 0x1)
 			total+=1;
 	}
 	return (total+1)%2;	
@@ -69,6 +93,7 @@ int execute(state8080* state){
 	
 	int instr_cycles = 0;
 
+	/*
 	printf("0x%02x:	 a: %02x szapc: %d%d%d%d%d\
 		bc: %02x%02x\
 		de: %02x%02x\
@@ -78,6 +103,7 @@ int execute(state8080* state){
 		state->A, state->f.S, state->f.Z, state->f.A,
 		state->f.P, state->f.C, state->B, state->C, state->D, 
 		state->E, state->H, state->L, state->PC, state->SP);
+	*/
 
 	switch(*instr){
 		case 0x00: break;
@@ -107,7 +133,7 @@ int execute(state8080* state){
 				uint8_t res = state->B+1;
 				state->f.S = res >> 7;
 				state->f.Z = (res == 0x00);
-				state->f.A = (((state->B << 4) >> 4) + 1) > 0x0F;
+				state->f.A = ((state->B & 0x08) == 0x08) && ((res & 0x08) == 0x00);
 				state->f.P = parity((uint32_t) res, 8);
 				state->B = res;
 				instr_cycles = 5;
@@ -119,7 +145,7 @@ int execute(state8080* state){
 				uint8_t res = (uint8_t)state->B-1;
 				state->f.S = res >> 7;
 				state->f.Z = (res == 0x00);
-				state->f.A = (((res << 4) >> 4) + 1) > 0x0F;
+				state->f.A = ((state->B & 0x08) == 0x08) && ((res & 0x08) == 0x00);
 				state->f.P = parity((uint32_t) res, 8);
 				state->B = res;
 				instr_cycles = 5;
@@ -467,7 +493,18 @@ int execute(state8080* state){
 		//case 0xAC: printf("XRA H"); break;
 		//case 0xAD: printf("XRA L"); break;
 		//case 0xAE: printf("XRA M"); break;
-		//case 0xAF: printf("XRA A"); break;
+		case 0xAF:{ //XRA A, exclusive or A with d8
+			uint8_t imd = state->memBuff[state->PC+1];
+			uint8_t res = state->A ^ imd;
+			state->f.C = 0x0;
+			state->f.S = res >> 7;
+			state->f.Z = (res == 0x00);
+			state->f.A = (((state->B << 4) >> 4) + 1) > 0x0F;
+			state->f.P = parity((uint32_t) res, 8);
+			state->PC+=1;
+			instr_cycles = 7;
+			break;
+		}
 
 		//case 0xB0: printf("ORA B"); break;
 		//case 0xB1: printf("ORA C"); break;
@@ -682,7 +719,10 @@ int execute(state8080* state){
 		//case 0xF8: printf("RM"); break;
 		//case 0xF9: printf("SPHL"); break;
 		//case 0xFA: printf("JM #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xFB: printf("EI"); break;
+		case 0xFB:{ //EI, enable interrupts in INTE
+			state->INTE = 0x1;
+			instr_cycles = 4;
+		}
 		//case 0xFC: printf("CM #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xFD: printf("CALL #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		case 0xFE:{	//CPI d8	compare d8 with A
