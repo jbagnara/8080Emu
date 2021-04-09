@@ -61,7 +61,6 @@ int startEmulation(FILE* rom){
 			if(timedif < 0)
 				timedif += start;
 		} while(timedif < CYCLE_SPD_NSEC * instr_cycles);
-		printf("%ld\n", timedif);
 
 	}
 
@@ -118,18 +117,16 @@ int execute(state8080* state){
 			instr_cycles = 7;
 			break;
 
-		case 0x03:	//INX, Increments value in pair B,C by 1
-			{
+		case 0x03: {	//INX, Increments value in pair B,C by 1
 				uint16_t BC = (state->B << 8) | state->C;
 				uint16_t res = BC+=1;
 				state->B = (res >> 8) & 0xFF;
 				state->C = res & 0xFF;
 				instr_cycles = 5;
 				break;
-			}
+		}
 
-		case 0x04:	//INR, Increments value in register B by 1
-			{
+		case 0x04: {	//INR, Increments value in register B by 1
 				uint8_t res = state->B+1;
 				state->f.S = res >> 7;
 				state->f.Z = (res == 0x00);
@@ -138,10 +135,9 @@ int execute(state8080* state){
 				state->B = res;
 				instr_cycles = 5;
 				break;
-			}
+		}
 			
-		case 0x05:	//DCR, Decrements value in B by 1
-			{
+		case 0x05: {	//DCR, Decrements value in B by 1
 				uint8_t res = (uint8_t)state->B-1;
 				state->f.S = res >> 7;
 				state->f.Z = (res == 0x00);
@@ -150,7 +146,7 @@ int execute(state8080* state){
 				state->B = res;
 				instr_cycles = 5;
 				break;
-			}
+		}
 
 		case 0x06:	//MVI, Loads 8 bit decimal into register B
 			state->B = state->memBuff[state->PC+1];
@@ -158,7 +154,13 @@ int execute(state8080* state){
 			instr_cycles = 7;
 			break;
 
-		//case 0x07: printf("RLC"); break;	//Rotate accumulator left
+		case 0x07: {	//RLC, Rotate accumulator left
+			state->f.C = (state->A >> 7) & 0x1;
+			uint8_t res = (state->A << 1) | state->f.C;
+			state->A = res;
+			instr_cycles = 4;
+			break;
+		}
 		//case 0x08: printf("NOP"); break;
 		case 0x09:{	//DAD B 
 			uint32_t hl = state-> H << 8 | state->L;
@@ -177,7 +179,7 @@ int execute(state8080* state){
 			uint8_t res = (uint8_t)state->C-1;
 			state->f.S = res >> 7;
 			state->f.Z = (res == 0x00);
-			state->f.A = (((res << 4) >> 4) + 1) > 0x0F;
+			state->f.A = ((state->B & 0x08) == 0x08) && ((res & 0x08) == 0x00);
 			state->f.P = parity((uint32_t) res, 8);
 			state->C = res;
 			instr_cycles = 5;
@@ -191,7 +193,9 @@ int execute(state8080* state){
 			break;
 
 		case 0x0F:{	// RRC (Rotate accumulator right)
-			state->A = state->A << 7 | state->A >> 1;	//TODO make sure that's right
+			state->f.C = (state->A) & 0x1;
+			uint8_t res = (state->A >> 1) | (state->f.C << 7);
+			state->A = res;
 			instr_cycles = 4;
 			break;
 		}
