@@ -26,7 +26,8 @@ typedef struct flags{
 	uint8_t A:1;	//auxiliary carry flag
 	uint8_t P:1;	//parity flag
 	uint8_t C:1;	//carry flag
-	uint8_t x:3;	//extra bits
+	uint8_t I:1;	//interrupt flag
+	uint8_t x:2;	//extra bits
 } flags;
 
 typedef struct state8080{
@@ -42,7 +43,8 @@ typedef struct state8080{
 	uint16_t SP;	//stack pointer
 	uint16_t PC;	//function pointer
 	struct flags f;
-	uint8_t INTE;
+	uint8_t i_bus;
+	uint8_t i_ready;
 } state8080;
 
 int startEmulation(FILE* rom);

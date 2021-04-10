@@ -13,4 +13,6 @@ void createWindow();
 void closeWindow();
 void* drawScreen(void* p);
 
+extern uint8_t i_d, d_bus;
+
 #endif

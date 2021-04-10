@@ -376,9 +376,259 @@ int main(){
 
 
 	//0x5E
+	test_case = 0x5E;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[0x5678] = 0x06;
+	state.H = 0x56;
+	state.L = 0x78;
+	e_E = 0x06;
+	e_H = state.H;
+	e_L = state.L;
+	e_PC = 1;
+	
+	execute(&state);
+	check();
+
+
+	//0x66
+	test_case = 0x66;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[0x5678] = 0x06;
+	state.H = 0x56;
+	state.L = 0x78;
+	e_H = 0x06;
+	e_L = state.L;
+	e_PC = 1;
+	
+	execute(&state);
+	check();
+
+
+	//0x6F
+	test_case = 0x6F;
+	reset();
+	state.memBuff[0] = test_case;
+	state.A = 0x0F;
+	e_L = state.A;
+	e_A = state.A;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
+
+	//0x77
+	test_case = 0x77;
+	reset();
+	state.memBuff[0] = test_case;
+	state.A = 0x55;
+	state.H = 0x04;
+	state.L = 0xC0;
+	e_A = state.A;
+	e_H = state.H;
+	e_L = state.L;
+	e_PC = 1;
+
+	execute(&state);
+	checkMem(0x04C0, 0x55);
+	check();
+
+
+	//0x7A
+	test_case = 0x7A;
+	reset();
+	state.memBuff[0] = test_case;
+	state.D = 0x4D;
+	e_D = state.D;
+	e_A = state.D;
+	e_PC = 1;
+	
+	execute(&state);
+	check();
+
+
+	//0x7B
+	test_case = 0x7B;
+	reset();
+	state.memBuff[0] = test_case;
+	state.E = 0x69;
+	e_E = state.E;
+	e_A = state.E;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
+
+	//0x7C
+	test_case = 0x7C;
+	reset();
+	state.memBuff[0] = test_case;
+	state.H = 0x70;
+	e_H = state.H;
+	e_A = state.H;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
+
+	//0x7E
+	test_case = 0x7E;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[0x1155] = 0x80;
+	state.H = 0x11;
+	state.L = 0x55;
+	e_H = state.H;
+	e_L = state.L;
+	e_A = 0x80;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
+
+	//0xAF
+	test_case = 0xAF;
+	reset();
+	state.memBuff[0] = test_case;
+	state.A = 0xff;
+	e_A = 0x00;
+	e_carry = 0x0;
+	e_sign = 0x0;
+	e_zero = 0x1;
+	e_aux = 0x0;
+	e_parity = 0x1;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
+
+	//0xC1
+	test_case = 0xC1;
+	reset();
+	state.SP = 0x3333;
+	state.memBuff[0] = test_case;
+	state.SP -= 1;
+	state.memBuff[state.SP] = 0x44;
+	state.SP -= 1;
+	state.memBuff[state.SP] = 0x55;
+	e_B = 0x44;
+	e_C = 0x55;
+	e_PC = 1;
+	e_SP = 0x3333;
+	
+	execute(&state);
+	check();
 	
 
+	//0xC2
+	test_case = 0xC2;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[1] = 0x11;
+	state.memBuff[2] = 0x50;
+	state.f.Z = 1;
+	e_zero = 1;
+	e_PC = 3;
+
+
+	execute(&state);
+	check();	
+
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[1] = 0x11;
+	state.memBuff[2] = 0x50;
+	e_PC = 0x5011;
+
+
+	execute(&state);
+	check();
+	
+
+	//0xC3
+	test_case = 0xC3;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[1] = 0x22;
+	state.memBuff[2] = 0x66;
+	e_PC = 0x6622;
+	
+
+	execute(&state);
+	check();
+
+
+	//0xC5
+	test_case = 0xC5;
+	reset();
+	state.memBuff[0] = test_case;
+	state.SP = 0x3333;
+	state.B = 0x54;
+	state.C = 0x76;
+	e_B = state.B;
+	e_C = state.C;
+	e_SP = 0x3331;
+	e_PC = 1;
+	
+
+	execute(&state);
+	checkMem(0x3332, 0x54);
+	checkMem(0x3331, 0x76);
+	check();
+
+
+	//0xC6
+	test_case = 0xC6;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[1] = 0x50;
+	state.A = 0xFF;
+	e_A = 0x4F;
+	e_zero = 0;
+	e_carry = 1;
+	e_PC = 2;
+
+	execute(&state);
+	check();
+	
+	
+	//0xC9
+	test_case = 0xC9;
+	reset();
+	state.memBuff[0] = test_case;
+	state.SP = 0x3334;
+	state.memBuff[0x3334] = 0x44;
+	state.memBuff[0x3335] = 0x55;
+	e_PC = 0x5545;
+	e_SP = 0x3336;
+
+	execute(&state);
+	check();
+
+
+	//0xCD
+	test_case = 0xCD;
+	reset();
+	state.PC = 0x4455;
+	state.memBuff[state.PC+0] = test_case;
+	state.memBuff[state.PC+1] = 0x33;
+	state.memBuff[state.PC+2] = 0x50;
+	state.SP = 0x3333;
+	e_PC = 0x5033;
+	e_SP = 0x3331;
+
+	execute(&state);
+	checkMem(0x3332, 0x44);
+	checkMem(0x3331, 0x55+2);
+	check();
 }
+
 
 void reset(){
 	failed = 0;
@@ -484,7 +734,7 @@ void check(){
 	}
 
 	if(e_PC != state.PC){
-		printf("A is 0x%.2x, expected 0x%.2x in case 0x%.2x\n", state.PC, e_PC, test_case);
+		printf("PC is 0x%.4x, expected 0x%.4x in case 0x%.2x\n", state.PC, e_PC, test_case);
 		failed = 1;
 	}
 
@@ -508,8 +758,7 @@ void checkMem(uint16_t addr, uint8_t e){
 
 	uint8_t val = state.memBuff[addr];
 	if(val != e){
-		printf("incorrect value 0x%.2x at addr 0x%.4x, \
-				expected 0x%.2x in case 0x%.2x\n", val, addr, e, test_case);
+		printf("incorrect value 0x%.2x at addr 0x%.4x, expected 0x%.2x in case 0x%.2x\n", val, addr, e, test_case);
 		failed = 1;
 	}
 	printf("\033[0m");
