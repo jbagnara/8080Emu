@@ -33,20 +33,29 @@ void* drawScreen(void* p){
 		timespec_get(&ts, TIME_UTC);
 		long start = ts.tv_nsec;
 
-		d_bus = 1;
-		i_d = 1;
 
 		SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, 256, 224);
 		SDL_SetRenderTarget(renderer, texture);
       	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
       	SDL_RenderClear(renderer);
       	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
+
+		d_bus = 1;
+		i_d = 1;
 	
 		for(int x=0; x<32; x++){
 			for(int bit=0; bit<8; bit++){
 				for(int y=0; y<224; y++){
+					if(y < 57)
+      					SDL_SetRenderDrawColor(renderer, 0x9a, 0xc8, 0xeb, 0);
+					else if(y<112)
+      					SDL_SetRenderDrawColor(renderer, 0xf4, 0xcf, 0xdf, 0);
+					else if(y<166)
+      					SDL_SetRenderDrawColor(renderer, 0xf7, 0xf6, 0xcf, 0);
+					else
+      					SDL_SetRenderDrawColor(renderer, 0x57, 0x84, 0xba, 0);
 					if(fb[x+32*y] & (1 << bit)){
-						SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
+						//SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
 						SDL_RenderDrawPoint(renderer, x*8+bit, y);
 					} 
 				}

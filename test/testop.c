@@ -7,7 +7,7 @@ void checkMem(uint16_t, uint8_t);
 uint8_t e_sign, e_zero, e_aux, e_parity, e_carry;
 uint8_t e_A, e_B, e_D, e_H, e_F, e_C, e_E, e_L;
 uint16_t e_PC, e_SP;
-uint8_t e_INTE;
+uint8_t e_I;
 
 state8080 state;
 int failed;
@@ -37,11 +37,15 @@ int main(){
 	reset();
 	state.memBuff[0] = test_case;
 	state.A = 0xAC;
+	state.B = 0x11;
+	state.C = 0x22;
 	e_A = state.A;
-	e_B = state.A;
+	e_B = state.B;
+	e_C = state.C;
 	e_PC = 1;	
 
 	execute(&state);
+	checkMem(0x1122, state.A);
 	check();
 
 	
@@ -132,6 +136,50 @@ int main(){
 	check();
 	
 
+	//0x0A
+	test_case = 0x0A;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[0x1234] = 0x40;
+	state.B = 0x12;
+	state.C = 0x34;
+	e_B = state.B;
+	e_C = state.C;
+	e_A = 0x40;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+	
+
+	//0x0B
+	test_case = 0x0B;
+	reset();
+	state.memBuff[0] = test_case;
+	state.B = 0x70;
+	state.C = 0x00;
+	e_B = 0x6F;
+	e_C = 0xFF;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
+
+	//0x0C
+	test_case = 0x0C;
+	reset();
+	state.memBuff[0] = test_case;
+	state.C = 0xCD;
+	e_sign = 1;
+	e_parity = 0;
+	e_aux = 0;
+	e_C = 0xCE;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
 	//0x0D
 	test_case = 0x0D;
 	reset();
@@ -186,6 +234,22 @@ int main(){
 	check();
 
 
+	//0x12
+	test_case = 0x12;
+	reset();
+	state.memBuff[0] = test_case;
+	state.A = 0xAC;
+	state.D = 0x11;
+	state.E = 0x22;
+	e_A = state.A;
+	e_D = state.D;
+	e_E = state.E;
+	e_PC = 1;	
+
+	execute(&state);
+	checkMem(0x1122, state.A);
+	check();
+
 	//0x13
 	test_case = 0x13;
 	reset();
@@ -199,6 +263,21 @@ int main(){
 	execute(&state);
 	check();
 
+
+	//0x14
+	test_case = 0x14;
+	reset();
+	state.memBuff[0] = test_case;
+	state.D = 0x11;
+	e_D = 0x12;
+	e_sign = 0;
+	e_zero = 0;
+	e_parity = 1;
+	e_aux = 0;
+	e_PC = 0;
+
+	execute(&state);
+	check();
 
 	//0x19
 	test_case = 0x19;
@@ -653,7 +732,7 @@ void reset(){
 
 	state.SP = 0x0;
 	state.PC = 0x0;
-	state.INTE = 0;
+	state.f.I = 0;
 
 	e_A = 0x0;
 	e_B = 0x0;
@@ -665,7 +744,7 @@ void reset(){
 	e_L = 0x0;
 	e_SP = 0x00;
 	e_PC = 0x00;
-	e_INTE = 0x0;
+	e_I = 0x0;
 	e_sign = 0x0;
 	e_zero = 0x0;
 	e_aux = 0x0;
@@ -738,8 +817,8 @@ void check(){
 		failed = 1;
 	}
 
-	if(e_INTE != state.INTE){
-		printf("incorrect INTE ff in case 0x%.2x\n", test_case);
+	if(e_I != state.f.I){
+		printf("incorrect INTE flag in case 0x%.2x\n", test_case);
 		failed = 1;
 	}
 
