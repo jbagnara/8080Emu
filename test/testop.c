@@ -274,11 +274,54 @@ int main(){
 	e_zero = 0;
 	e_parity = 1;
 	e_aux = 0;
-	e_PC = 0;
+	e_PC = 1;
 
 	execute(&state);
 	check();
 
+
+	//0x15
+	test_case = 0x15;
+	reset();
+	state.memBuff[0] = test_case;
+	state.B = 0x12;
+	e_B = 0x11;
+	e_sign = 0;
+	e_zero = 0;
+	e_parity = 1;
+	e_aux = 0;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
+
+	//0x16
+	test_case = 0x16;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[1] = 0x67;
+	e_D = 0x67;
+	e_PC = 2;
+
+	execute(&state);
+	check();
+
+
+	//0x17
+	test_case = 0x17;
+	reset();
+	state.memBuff[0] = test_case;
+	state.A = 0x55;
+	state.f.C = 1;
+	e_A = 0xab;
+	e_carry = 0;
+	e_PC = 1;
+
+	execute(&state);
+	check();
+
+	
 	//0x19
 	test_case = 0x19;
 	reset();
@@ -326,6 +369,23 @@ int main(){
 	execute(&state);
 	check();
 
+
+	//0x22
+	test_case = 0x22;
+	reset();
+	state.memBuff[0] = test_case;
+	state.memBuff[1] = 0x55;
+	state.memBuff[2] = 0x66;
+	state.H = 0xcc;
+	state.L = 0xff;
+	e_H = state.H;
+	e_L = state.L;
+	e_PC = 3;
+
+	execute(&state);
+	checkMem(0x6655, 0xff);
+	checkMem(0x6656, 0xcc);
+	check();
 
 	//0x23
 	test_case = 0x23;
@@ -704,7 +764,7 @@ int main(){
 
 	execute(&state);
 	checkMem(0x3332, 0x44);
-	checkMem(0x3331, 0x55+2);
+	checkMem(0x3331, 0x55+3);
 	check();
 }
 

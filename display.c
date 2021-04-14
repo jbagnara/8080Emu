@@ -40,10 +40,12 @@ void* drawScreen(void* p){
       	SDL_RenderClear(renderer);
       	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
 
-		d_bus = 1;
-		i_d = 1;
 	
 		for(int x=0; x<32; x++){
+			if(x == 16){
+				d_bus = 1;
+				i_d = 1;
+			}
 			for(int bit=0; bit<8; bit++){
 				for(int y=0; y<224; y++){
 					if(y < 57)
@@ -69,7 +71,7 @@ void* drawScreen(void* p){
 		d_bus = 2;
 		i_d = 1;
 
-		long current, timedif;;
+		long current, timedif;
 		do {
 			timespec_get(&ts, TIME_UTC);
 			current = ts.tv_nsec;

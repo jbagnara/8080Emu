@@ -78,24 +78,32 @@ int parity(uint32_t string, int size){
 	return (total+1)%2;	
 }
 
+uint8_t readShift(uint8_t port, taito state){
+	switch(port){
+	case 3: return state.shift_reg >> (8 - state.offset);
+	case 6: state.watchdog = 0; return 0x00;
+	}
+	return 0x00;
+}
+
+void writeShift(uint8_t port, uint8_t val, taito* state){
+	switch(port){
+	case 2: state->offset = val; break;
+	case 4: state->shift_reg = (val << 8) | (state->shift_reg >> 8); break;
+	case 6: state->watchdog = 0;
+	}
+}
+
 /*
 	Reads in and executes next instruction from memory buffer using op case
 	- state: state of emulator
 */
 int execute(state8080* state){
 
-	if(state->PC == 0x13a){
-		for(int i=0; i<50; i++){
-			printf("0x%.4x\n", state->memBuff[state->SP+i]);
-		}
-	}
-
 	if(state->f.I == 0x1){
 		//ISR
-		if(i_d == 0x1){
+		if(i_d){
 			state->f.I = 0x0;
-			i_d = 0;
-			printf("Interrupt %.2x\n", i_d);
 			//printf("memBuff:\n");
 
 			//for(int i = 0; i < 0xffff; i++)
@@ -108,6 +116,7 @@ int execute(state8080* state){
 			state->PC = d_bus * 8;
 
 			total_cycles += 11;
+			i_d = 0;
 			return 0;
 		}
 	}
@@ -120,7 +129,7 @@ int execute(state8080* state){
 	int instr_cycles = 0;
 
 	
-	printf("0x%02x:	 a: %02x szapc: %d%d%d%d%d\
+	/*printf("0x%02x:	 a: %02x szapc: %d%d%d%d%d\
 		bc: %02x%02x\
 		de: %02x%02x\
 		hl: %02x%02x\
@@ -129,6 +138,7 @@ int execute(state8080* state){
 		state->A, state->f.S, state->f.Z, state->f.A,
 		state->f.P, state->f.C, state->B, state->C, state->D, 
 		state->E, state->H, state->L, state->PC, state->SP);
+	*/
 
 	switch(*instr){
 		case 0x00: break;
@@ -375,9 +385,9 @@ int execute(state8080* state){
 
 		case 0x20: break;
 		case 0x21:	//LXI, Loads 16 bit address into register pair HL
-			state->H = *(state->memBuff+state->PC+2);
-			state->L = *(state->memBuff+state->PC+1);
-			state->PC+=2;
+			state->H = state->memBuff[state->PC+2];
+			state->L = state->memBuff[state->PC+1];
+			state->PC += 2;
 			instr_cycles = 10;
 			break;
 
@@ -386,6 +396,7 @@ int execute(state8080* state){
 							(state->memBuff[state->PC+1]);
 			state->memBuff[addr] = state->L;
 			state->memBuff[addr+1] = state->H;
+			state->PC += 2;
 			instr_cycles = 16;
 			break;
 		}
@@ -412,7 +423,7 @@ int execute(state8080* state){
 		//case 0x25: printf("DCR H"); break;
 		case 0x26:{	//MVI H, D8 
 			state->H = state->memBuff[state->PC+1];
-			state->PC+=1;
+			state->PC += 1;
 			instr_cycles = 7;
 			break;
 		}
@@ -422,7 +433,7 @@ int execute(state8080* state){
 				state->f.A = (res1 & 0xF) < (state->A & 0xF);
 				state->A = res1;
 
-				if((state->A >> 8) > 0x9){
+				if((state->A >> 8) > 0x9 || state->f.C == 1){
 					uint8_t res2 = (((state->A >> 8) + 0x6) << 8) | state->A;
 					state->f.C = res2 < state->A;
 					state->A = res2;
@@ -451,6 +462,7 @@ int execute(state8080* state){
 			uint16_t addr = (state->memBuff[state->PC+2] << 8) |
 							(state->memBuff[state->PC+1]);
 			state->L = state->memBuff[addr];
+			state->H = state->memBuff[addr+1];
 
 			state->PC += 2;
 			instr_cycles = 16;
@@ -465,7 +477,16 @@ int execute(state8080* state){
 			instr_cycles = 5;
 			break;
 		}
-		//case 0x2C: printf("INR L"); break;
+		case 0x2C: { //INR L
+			uint8_t res = state->L+1;
+			state->f.S = res >> 7;
+			state->f.Z = (res == 0x00);
+			state->f.A = ((state->L & 0x08) == 0x08) && ((res & 0x08) == 0x00);
+			state->f.P = parity((uint32_t) res, 8);
+			state->L = res;
+			instr_cycles = 5;
+			break;	
+		}
 		//case 0x2D: printf("DCR L"); break;
 		case 0x2E: { //MVI L d8
 			state->L = state->memBuff[state->PC+1];
@@ -473,7 +494,12 @@ int execute(state8080* state){
 			instr_cycles = 7;
 			break;
 		}
-		//case 0x2F: printf("CMA"); break;
+		case 0x2F: { //CMA
+			uint8_t res = -1 - state->A;
+			state->A = res;
+			instr_cycles = 4;
+			break;
+		}
 		
 		case 0x30: break;
 		case 0x31:	//LXI,	Loads 16 bit address into SP
@@ -562,7 +588,7 @@ int execute(state8080* state){
 				state->f.Z = (res == 0x00);
 				state->f.A = ((state->A & 0x08) == 0x08) && ((res & 0x08) == 0x00);
 				state->f.P = parity((uint32_t) res, 8);
-				state->B = res;
+				state->A = res;
 				instr_cycles = 5;
 				break;
 		}
@@ -579,7 +605,7 @@ int execute(state8080* state){
 		}
 		case 0x3E: { //MVI A, 8d
 			state->A = memBuff[state->PC+1];
-			state->PC+=1;
+			state->PC += 1;
 			instr_cycles = 7;
 			break;
 		}
@@ -619,12 +645,16 @@ int execute(state8080* state){
 			break;
 		}
 		case 0x46: { //MOV M -> B
-			uint16_t M = state->H << 8 | state->L;
-			state->B = state->memBuff[M];
+			uint16_t HL = state->H << 8 | state->L;
+			state->B = state->memBuff[HL];
 			instr_cycles = 5;
 			break;
 		}
-		//case 0x47: printf("MOV B, A"); break;
+		case 0x47: { //MOV A -> B
+			state->B = state->A;
+			instr_cycles = 5;
+			break;
+		}
 		case 0x48: { //MOV B -> C
 			state->C = state->B;
 			instr_cycles = 5;
@@ -652,8 +682,8 @@ int execute(state8080* state){
 			break;
 		}
 		case 0x4E: { //MOV M -> C
-			uint16_t M = state->H << 8 | state->L;
-			state->C = state->memBuff[M];
+			uint16_t HL = state->H << 8 | state->L;
+			state->C = state->memBuff[HL];
 			instr_cycles = 5;
 			break;
 		}
@@ -700,8 +730,8 @@ int execute(state8080* state){
 		}
 
 		case 0x56:{ //Mov M -> D
-			uint16_t M = state->H << 8 | state->L;
-			state->D = state->memBuff[M];
+			uint16_t HL = state->H << 8 | state->L;
+			state->D = state->memBuff[HL];
 			instr_cycles = 7;
 			break;
 		}
@@ -762,11 +792,37 @@ int execute(state8080* state){
 			instr_cycles = 5;
 			break;
 		}
-		//case 0x61: printf("MOV H, C"); break;
-		//case 0x62: printf("MOV H, D"); break;
-		//case 0x63: printf("MOV H, E"); break;
-		//case 0x64: printf("MOV H, H"); break;
-		//case 0x65: printf("MOV H, L"); break;
+
+		case 0x61: { //MOV C -> H
+			state->H = state->C;
+			instr_cycles = 5;
+			break;
+		}
+
+		case 0x62: { //MOV D -> H
+			state->H = state->D;
+			instr_cycles = 5;
+			break;
+		}
+
+		case 0x63: { //MOV E -> H
+			state->H = state->E;
+			instr_cycles = 5;
+			break;
+		}
+
+		case 0x64: { //MOV H -> H
+			state->H = state->H;
+			instr_cycles = 5;
+			break;
+		}
+
+		case 0x65: { //MOV L -> H
+			state->H = state->L;
+			instr_cycles = 5;
+			break;
+		}
+
 		case 0x66:{ // Mov M -> H 
 			uint16_t M = state->H << 8 | state->L;
 			state->H = state->memBuff[M];
@@ -783,10 +839,26 @@ int execute(state8080* state){
 			instr_cycles = 5;
 			break;
 		}
-		//case 0x69: printf("MOV L, C"); break;
-		//case 0x6A: printf("MOV L, D"); break;
-		//case 0x6B: printf("MOV L, E"); break;
-		//case 0x6C: printf("MOV L, H"); break;
+		case 0x69: { //MOV C -> L
+			state->L = state->C;
+			instr_cycles = 5;
+			break;		
+		}
+		case 0x6A: { //MOV D -> L
+			state->L = state->D;
+			instr_cycles = 5;
+			break;	
+		}
+		case 0x6B: { //MOV E -> L
+			state->L = state->E;
+			instr_cycles = 5;
+			break;	
+		}
+		case 0x6C: { //MOV H -> L
+			state->L = state->H;
+			instr_cycles = 5;
+			break;	
+		}
 		case 0x6D: { //MOV L -> L
 			state->L = state->L;
 			instr_cycles = 5;
@@ -927,7 +999,18 @@ int execute(state8080* state){
 			break;
 		}
 		//case 0x84: printf("ADD H"); break;
-		//case 0x85: printf("ADD L"); break;
+		case 0x85: { //ADD L
+			uint8_t res = state->A + state->L;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0x0;
+			state->f.A = (res & 0xF) < (state->A & 0xF);
+			state->f.P = parity(res, 8);
+			state->f.C = res < state->A;
+			state->A = res;
+
+			instr_cycles = 4;
+			break;
+		}
 		case 0x86: { //ADD M
 			uint16_t HL = (state->H << 8) | state->L;
 			uint8_t res = state->A + memBuff[HL];
@@ -1136,7 +1219,19 @@ int execute(state8080* state){
 			instr_cycles = 4;
 			break;
 		}
-		//case 0xA6: printf("ANA M"); break;
+		case 0xA6: { //ANA M
+			uint16_t HL = (state->H << 8) | state->L;
+			uint8_t res = state->A & state->memBuff[HL];
+			state->f.C = 0x0;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0x0;
+			state->f.A = 0x0;
+			state->f.P = parity(res, 8);
+			state->A = res;
+			
+			instr_cycles = 4;
+			break;
+		}
 		case 0xA7: { //ANA A
 			state->f.C = 0x0;
 			state->f.S = state->A >> 7;
@@ -1217,11 +1312,21 @@ int execute(state8080* state){
 			state->f.Z = res == 0x0;
 			state->f.A = (res & 0xF) < (state->A & 0xF);
 			state->f.P = parity(res, 8);
+			state->A = res;
 			instr_cycles = 4;	
 			break;
 		}
 		//case 0xB7: printf("ORA A"); break;
-		//case 0xB8: printf("CMP B"); break;
+		case 0xB8: { //CMP B
+			uint8_t res = state->A - state->B;
+			state->f.C = res > state->A;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0x00;
+			state->f.A = (res & 0xF) > (state->A & 0xF);
+			state->f.P = parity(res, 8);
+			instr_cycles = 4;
+			break;
+		}
 		//case 0xB9: printf("CMP C"); break;
 		case 0xBA: { //CMP D
 			uint8_t res = state->A - state->D;
@@ -1254,9 +1359,37 @@ int execute(state8080* state){
 			instr_cycles = 4;
 			break;
 		}
-		//case 0xBD: printf("CMP L"); break;
-		//case 0xBE: printf("CMP M"); break;
-		//case 0xBF: printf("CMP A"); break;
+		case 0xBD: { //CMP L
+			uint8_t res = state->A - state->L;
+			state->f.C = res > state->A;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0x00;
+			state->f.A = (res & 0xF) > (state->A & 0xF);
+			state->f.P = parity(res, 8);
+			instr_cycles = 4;
+			break;
+		}
+		case 0xBE: { //CMP M
+			uint16_t HL = (state->H << 8) | state->L;
+			uint8_t res = state->A - state->memBuff[HL];
+			state->f.C = res > state->A;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0x00;
+			state->f.A = (res & 0xF) > (state->A & 0xF);
+			state->f.P = parity(res, 8);
+			instr_cycles = 4;
+			break;
+		}
+		case 0xBF: { //CMP A
+			uint8_t res = state->A - state->H;
+			state->f.C = res > state->A;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0x00;
+			state->f.A = (res & 0xF) > (state->A & 0xF);
+			state->f.P = parity(res, 8);
+			instr_cycles = 4;
+			break;
+		}
 
 		case 0xC0: { //RNZ
 			if(!state->f.Z){
@@ -1392,9 +1525,6 @@ int execute(state8080* state){
 			state->PC = state->memBuff[state->PC+2] << 8 | 
 					state->memBuff[state->PC+1];
 
-			if(state->PC == 0x08ff)
-				printf("woah\n");
-
 			state->PC -= 1;
 			instr_cycles = 17;
 			break;
@@ -1438,11 +1568,28 @@ int execute(state8080* state){
 			state->PC+=1;
 
 			//TODO SOMETHING
+			writeShift(device, state->A, &state->peripherals);
 			instr_cycles = 10;
 			break;
 		}
-		//case 0xD4: printf("CNC #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		case 0xD5:{	//PUSH D to stack
+		case 0xD4: { //CNC
+			if(!state->f.C){
+				uint16_t ret = state->PC+3;
+				state->memBuff[state->SP-1] = ret >> 8 & 0xFF;
+				state->memBuff[state->SP-2] = ret & 0xFF;
+				state->SP -= 2;
+				state->PC = state->memBuff[state->PC+2] << 8 | 
+						state->memBuff[state->PC+1];
+
+				state->PC -= 1;
+				instr_cycles = 17;
+			} else {
+				instr_cycles = 11;
+				state->PC += 2;
+			}
+			break;
+		}
+		case 0xD5: { //PUSH D to stack
 			state->memBuff[state->SP-1] = state->D;
 			state->memBuff[state->SP-2] = state->E;
 			state->SP-=2;
@@ -1500,11 +1647,24 @@ int execute(state8080* state){
 			state->PC+=1;
 
 			//TODO
+			state->A = readShift(device, state->peripherals);
 			break;
 		}
 		//case 0xDC: printf("CC #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		//case 0xDD: printf("CALL #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
-		//case 0xDE: printf("SBI #$%02x", *(memBuff+pc+1)); opbytes = 2; break;
+		case 0xDE: { //SBI d8
+			uint8_t imd = state->memBuff[state->PC+1] + state->f.C;
+			uint8_t res = state->A - imd;
+			state->A = res;
+			state->f.C = imd < res;
+			state->f.S = res >> 7;
+			state->f.Z = res == 0;
+			state->f.A = (imd & 0xF) < (res & 0xF);
+			state->f.P = parity((uint32_t) res, 8);	
+			state->PC+=1;
+			instr_cycles = 7;
+			break;
+		}
 		//case 0xDF: printf("RST 3"); break;
 
 		case 0xE0: { //RPO
@@ -1752,7 +1912,7 @@ int execute(state8080* state){
 		//case 0xFF: printf("RST 7"); break;
 
 		default: 
-			printf("***UNKNOWN INSTRUCTION 0x%02x AT LINE 0x%04x***\n", *instr, state->PC);
+			printf("***UNKNOWN LNSTRUCTION 0x%02x AT LINE 0x%04x***\n", *instr, state->PC);
 			return -1;
 	}
 	state->PC+=1;

@@ -17,7 +17,7 @@ static const uint16_t FRAME_BUFFER 		= 0x2400;
 static const uint16_t MAX_ROM_SIZE 		= 0x2000;
 static const long CPU_CLOCK_SPEED		= 2000000;	//2MHz
 static const long CYCLE_SPD_NSEC		= 1000000000 / CPU_CLOCK_SPEED;
-static const int REFRESH_RATE			= 60;		//60fps
+static const int REFRESH_RATE			= 600;		//60fps
 static const long DISPLAY_SPD_NSEC		= 1000000000 / REFRESH_RATE;
 
 typedef struct flags{
@@ -29,6 +29,12 @@ typedef struct flags{
 	uint8_t I:1;	//interrupt flag
 	uint8_t x:2;	//extra bits
 } flags;
+
+typedef struct taito{
+	uint8_t offset;
+	uint16_t shift_reg;
+	uint8_t watchdog;
+} taito;
 
 typedef struct state8080{
 	uint8_t A;	//register A (accumulator) pairs F (flags)
@@ -45,6 +51,7 @@ typedef struct state8080{
 	struct flags f;
 	uint8_t i_bus;
 	uint8_t i_ready;
+	struct taito peripherals;
 } state8080;
 
 int startEmulation(FILE* rom);
