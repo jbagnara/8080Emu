@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <time.h>
+#include <limits.h>
 
 #include "emulator.h"
 #include "disassemble.h"
@@ -17,7 +18,7 @@ static const uint16_t FRAME_BUFFER 		= 0x2400;
 static const uint16_t MAX_ROM_SIZE 		= 0x2000;
 static const long CPU_CLOCK_SPEED		= 2000000;	//2MHz
 static const long CYCLE_SPD_NSEC		= 1000000000 / CPU_CLOCK_SPEED;
-static const int REFRESH_RATE			= 600;		//60fps
+static const int REFRESH_RATE			= 60;		//60fps
 static const long DISPLAY_SPD_NSEC		= 1000000000 / REFRESH_RATE;
 
 typedef struct flags{

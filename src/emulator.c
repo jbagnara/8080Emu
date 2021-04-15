@@ -1,6 +1,6 @@
 #include "emulator.h"
 
-int total_cycles = 0;
+long long total_cycles = 0;
 
 /*
 	Instantiates emulator registers and memory buffers
@@ -37,7 +37,7 @@ int startEmulation(FILE* rom){
 		if(pollEvent())	//Quit event reached, exit game loop
 			break;
 		
-		int cycles = total_cycles;
+		unsigned int cycles = total_cycles;
 
 		struct timespec ts;
 		timespec_get(&ts, TIME_UTC);	
@@ -50,13 +50,17 @@ int startEmulation(FILE* rom){
 		int instr_cycles = total_cycles - cycles;
 
 
-		long current, timedif;
+		long current;
+		unsigned long timedif;
 		do {
 			timespec_get(&ts, TIME_UTC);
 			current = ts.tv_nsec;
+
 			timedif = current - start;
-			if(timedif < 0)
-				timedif += start;
+
+			if(timedif < start)	//If overflow, recalculate difference
+				timedif = ULONG_MAX - start + timedif;	
+
 		} while(timedif < CYCLE_SPD_NSEC * instr_cycles);
 
 	}
@@ -104,10 +108,6 @@ int execute(state8080* state){
 		//ISR
 		if(i_d){
 			state->f.I = 0x0;
-			//printf("memBuff:\n");
-
-			//for(int i = 0; i < 0xffff; i++)
-			//	printf("%.4x: %.2x\n", i, state->memBuff[i]);
 
 			uint16_t ret = state->PC;
 			state->memBuff[state->SP-1] = ret >> 8 & 0xFF;
@@ -141,7 +141,8 @@ int execute(state8080* state){
 	*/
 
 	switch(*instr){
-		case 0x00: break;
+		case 0x00: instr_cycles = 4; break;
+
 		case 0x01: {	//LXI, Loads 16 bit address into register B
 			state->B = state->memBuff[state->PC+2];
 			state->C = state->memBuff[state->PC+1];
@@ -202,7 +203,7 @@ int execute(state8080* state){
 			break;
 		}
 
-		case 0x08: break;
+		case 0x08: instr_cycles = 4; break;
 
 		case 0x09:{	//DAD B 
 			uint16_t hl = state-> H << 8 | state->L;
@@ -266,7 +267,7 @@ int execute(state8080* state){
 			instr_cycles = 4;
 			break;
 		}
-		case 0x10: break;
+		case 0x10: instr_cycles = 4; break;
 
 		case 0x11:	//LXI, Loads 16 bit address into register pair DE
 			state->D = state->memBuff[state->PC+2];
@@ -326,7 +327,7 @@ int execute(state8080* state){
 			break;
 		}
 
-		case 0x18: break;
+		case 0x18: instr_cycles = 4; break;
 
 		case 0x19:{ //DAD D	
 			uint32_t hl = state-> H << 8 | state->L;
@@ -383,7 +384,7 @@ int execute(state8080* state){
 			break;
 		}
 
-		case 0x20: break;
+		case 0x20: instr_cycles = 4; break;
 		case 0x21:	//LXI, Loads 16 bit address into register pair HL
 			state->H = state->memBuff[state->PC+2];
 			state->L = state->memBuff[state->PC+1];
@@ -446,7 +447,7 @@ int execute(state8080* state){
 			instr_cycles = 4;
 			break;
 		}
-		case 0x28: break;
+		case 0x28: instr_cycles = 4; break;
 
 		case 0x29: { //DAD H
 			uint16_t hl = state-> H << 8 | state->L;
@@ -501,7 +502,7 @@ int execute(state8080* state){
 			break;
 		}
 		
-		case 0x30: break;
+		case 0x30: instr_cycles = 4; break;
 		case 0x31:	//LXI,	Loads 16 bit address into SP
 			state->SP = state->memBuff[state->PC+2] << 8 |
 					state->memBuff[state->PC+1];
@@ -510,9 +511,9 @@ int execute(state8080* state){
 			break;
 
 		case 0x32:{ //STA 16d (store accumulator in memory at address of immediate)
-			uint16_t addr = memBuff[state->PC+2] << 8 |
+			uint16_t addr = state->memBuff[state->PC+2] << 8 |
 					state->memBuff[state->PC+1];
-			memBuff[addr] = state->A;
+			state->memBuff[addr] = state->A;
 			state->PC+=2;
 			instr_cycles = 5;
 			break;
@@ -555,7 +556,7 @@ int execute(state8080* state){
 			instr_cycles = 4;
 			break;
 		}
-		case 0x38: break;
+		case 0x38: instr_cycles = 4; break;
 
 		case 0x39: { //DAD SP
 			uint16_t HL = state-> H << 8 | state->L;
@@ -1248,6 +1249,7 @@ int execute(state8080* state){
 			state->f.Z = res == 0x0;
 			state->f.A = (res & 0xF) < (state->A & 0xF);
 			state->f.P = parity(res, 8);
+			state->A = res;
 			instr_cycles = 4;
 			break;
 		}
@@ -1260,6 +1262,7 @@ int execute(state8080* state){
 			state->f.Z = res == 0x0;
 			state->f.A = (res & 0xF) < (state->A & 0xF);
 			state->f.P = parity(res, 8);
+			state->A = res;
 			instr_cycles = 4;
 			break;
 		}
@@ -1428,7 +1431,7 @@ int execute(state8080* state){
 			instr_cycles = 10;
 			break;
 		case 0xC4: { //CNZ a16
-			if(!state->f.Z){
+			if(state->f.Z == 1){
 				uint16_t ret = state->PC+3;
 				state->memBuff[state->SP-1] = ret >> 8 & 0xFF;
 				state->memBuff[state->SP-2] = ret & 0xFF;
@@ -1501,7 +1504,7 @@ int execute(state8080* state){
 		} 
 		//case 0xCB: printf("JMP #$%02x%02x", *(memBuff+pc+2), *(memBuff+pc+1)); opbytes = 3; break;
 		case 0xCC: { //CZ a16
-			if(state->f.Z == 0) {
+			if(state->f.Z == 1) {
 				uint16_t ret = state->PC+3;
 				state->memBuff[state->SP-1] = ret >> 8 & 0xFF;
 				state->memBuff[state->SP-2] = ret & 0xFF;
@@ -1513,6 +1516,7 @@ int execute(state8080* state){
 				instr_cycles = 17;
 			} else {
 				instr_cycles = 11;
+				state->PC += 2;
 			}
 		}
 
@@ -1668,7 +1672,7 @@ int execute(state8080* state){
 		//case 0xDF: printf("RST 3"); break;
 
 		case 0xE0: { //RPO
-			if(state->f.S == 1) {
+			if(state->f.P == 0) {
 				state->PC = state->memBuff[state->SP] | state->memBuff[state->SP+1] << 8;
 				state->PC -= 1;
 				state->SP+=2;
@@ -1768,9 +1772,6 @@ int execute(state8080* state){
 			state->SP -= 2;
 			state->PC = state->memBuff[state->PC+2] << 8 | 
 					state->memBuff[state->PC+1];
-
-			if(state->PC == 0x08ff)
-				printf("woah\n");
 
 			state->PC -= 1;
 			instr_cycles = 17;
@@ -1887,9 +1888,6 @@ int execute(state8080* state){
 			state->PC = state->memBuff[state->PC+2] << 8 | 
 					state->memBuff[state->PC+1];
 
-			if(state->PC == 0x08ff)
-				printf("woah\n");
-
 			state->PC -= 1;
 			instr_cycles = 17;
 			break;
@@ -1912,7 +1910,7 @@ int execute(state8080* state){
 		//case 0xFF: printf("RST 7"); break;
 
 		default: 
-			printf("***UNKNOWN LNSTRUCTION 0x%02x AT LINE 0x%04x***\n", *instr, state->PC);
+			printf("***UNKNOWN INSTRUCTION 0x%02x AT LINE 0x%04x***\n", *instr, state->PC);
 			return -1;
 	}
 	state->PC+=1;

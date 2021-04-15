@@ -1,39 +1,51 @@
-makefile: emulator
+SRC_DIR := src
+INC_DIR := include
+BIN_DIR := bin
+OBJ_DIR := obj
+TST_DIR := test
+
+OBJECTS := $(addprefix $(OBJ_DIR)/,disassemble.o display.o emulator.o)
+EMU_OBJ := $(OBJ_DIR)/main.o
+DIS_OBJ := $(OBJ_DIR)/disassembler.o
+TEST_OBJ := $(OBJ_DIR)/testop.o
+
+CC := gcc
+CFLAGS := -g -MMD -MP
+CLIBS := -lSDL2 -pthread
+
+.PHONY: all clean test
+
+emulator: $(BIN_DIR)/emulator
 
 all: emulator disassembler
 
-emulator: emulator.o disassemble.o display.o
-	cc -o emulator main.c emulator.o disassemble.o display.o  -lSDL2 -pthread
-	@rm *.o
-	@rm -f *.h.gch
+disassembler: $(BIN_DIR)/disassembler
 
-disassembler:	disassembler.o
-	cc -o disassembler disassembler.o disassemble.h disassemble.c
-	@rm disassembler.o
+test: $(BIN_DIR)/test runtest
 
-test: emulator.o disassemble.o display.o
-	cc -c -g -I"." test/testop.c
-	cc -o test/test testop.o emulator.o disassemble.o display.o -lSDL2 -pthread
-	@rm *.o
-	@rm -f *.h.gch
-	./test/test
-	@rm ./test/test
 
-emulator.o:
-	cc -c -g emulator.c
+$(BIN_DIR)/emulator: $(EMU_OBJ) $(OBJECTS) | $(BIN_DIR)
+	$(CC) $(CFLAGS) $^ $(CLIBS) -o $@
 
-disassembler.o:
-	cc -c -g disassembler.c
+$(BIN_DIR)/disassembler: $(DIS_OBJ) $(OBJECTS) | $(BIN_DIR)	
+	$(CC) $(CFLAGS) $^ $(CLIBS) -o $@
 
-disassemble.o:
-	cc -c -g disassemble.h disassemble.c
+$(BIN_DIR)/test: $(TEST_OBJ) $(OBJECTS) | $(BIN_DIR)
+	$(CC) $(CFLAGS) $^ $(CLIBS) -o $@
 
-display.o:
-	cc -c -g display.c display.h -lSDL2
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+	$(CC) -I$(INC_DIR) $(CFLAGS) -c $<  -o $@
+
+$(OBJ_DIR)/%.o: $(TST_DIR)/%.c | $(OBJ_DIR)
+	$(CC) -I$(INC_DIR) $(CFLAGS) -c $<  -o $@
+
+$(BIN_DIR) $(OBJ_DIR):
+	mkdir -p $@
+
+runtest:
+	./bin/test
 
 clean:
-	@rm -f disassembler
-	@rm -f emulator
-	@rm -f out.txt
-	@rm -f *.o
-	@rm -f *.h.gch
+	@$(RM) -rv $(BIN_DIR) $(OBJ_DIR)
+	@rm out.txt
+
